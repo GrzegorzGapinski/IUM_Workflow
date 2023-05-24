@@ -1,0 +1,68 @@
+name: Training Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      train_parameters:
+        description: 'Training parameters'
+        required: true
+        default: '{"epochs": 10, "batch_size": 32}'
+
+jobs:
+  checkout_repo:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+  download_data:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download training data
+      run: |
+        2019-european-parliament-election-in-poland-data.zip
+
+  train_model:
+    runs-on: ubuntu-latest
+    needs: [checkout_repo, download_data]
+    steps:
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Install dependencies
+      run: pip install numpy pandas tensorflow sklearn
+
+    - name: Train model
+      run: python model_train.py ${{ github.workspace }} ${{ toJson(inputs) }}
+
+  evaluate_model:
+    runs-on: ubuntu-latest
+    needs: train_model
+    steps:
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Install dependencies
+      run: pip install pandas tensorflow
+
+    - name: Evaluate model
+      run: python model_test.py ${{ github.workspace }}
+
+  archive_model:
+    runs-on: ubuntu-latest
+    needs: evaluate_model
+    steps:
+    - name: Archive model
+      run: tar czf model.tar.gz model/
+      env:
+        ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: trained-model
+        path: ${{ env.ARTIFACTS_DIR }}/model.tar.gz
